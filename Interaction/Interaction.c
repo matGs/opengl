@@ -42,14 +42,13 @@
 
 /* Flag for starting/stopping animation */
 GLboolean anim = GL_TRUE;
-
 GLboolean anim_cam = GL_FALSE;						// Anim var for automatic camera mode
 
 /* Define handles to two vertex buffer objects */
-GLuint VBO[13];
+GLuint VBO[15];
 
 /* Define handles to two index buffer objects */
-GLuint IBO[13];
+GLuint IBO[15];
 
 /* Indices to vertex attributes; in this case positon only */ 
 enum DataID {vPosition = 0}; 
@@ -64,7 +63,8 @@ GLuint ShaderProgram;
 /* Matrices for uniform variables in vertex shader */
 float ProjectionMatrix[16]; /* Perspective projection matrix */
 float ViewMatrix[16];       /* Camera view matrix */ 
-float ModelMatrix[13][16];      /* Model matrix for each .obj file */
+float ModelMatrix[15][16];      /* Model matrix for each .obj file */
+
 
 /* Transformation matrices for model rotation */			// NEW: For every object Rotation Matrices
 float RotationMatrixAnimX[16];
@@ -72,19 +72,24 @@ float RotationMatrixAnimY[16];
 float RotationMatrixAnimZ[16];
 float RotationMatrixAnim[16];
 
-float RotationMatrixAnimY2[16];								
+float RotationMatrixAnimY2[16];		                               // NEW: additional rotation matrices
+float RotationMatrixAnimY3[16];								
     
-/* Variables for storing current rotation angles */			// NEW: fore every object Rotation angles
+/* Variables for storing current rotation angles */			// NEW: fore some objects different Rotation angles
 float angleY= 0.0f; 
-
 float angleY2 = 0.0f;										
   
 
 /* Identity Matrix: filler for Multiplication-gaps  */
 float IdentityMatrixAnim[16];
 
-/* Extra Translation Matrix to Translate from/to center */
+/* Extra Translation Matrix to Translate from/to center */              // NEW: Translation matrices for ball models
 float TranslationMatrixAnim[16];
+float TranslationMatrixAnim2[16];
+float TranslationMatrixAnim3[16];
+float TranslationMatrixAnim4[16];
+float TranslationMatrixAnim5[16];
+float TranslationMatrixAnim6[16];
 
 
 
@@ -94,29 +99,50 @@ int axis = Yaxis;
 
 /* Indices to active triangle mesh */
 enum {Model1=0, Model2=1, Model3=3, Model4=4, Model5=5, Model6=6, Model7=7,	
-      Model8=8, Model9=9, Model10=10, Model11=11, Model12=12, Model13=13
-};
+      Model8=8, Model9=9, Model10=10, Model11=11, Model12=12, Model13=13,
+      Model14=14, Model15=15 };
 int model = Model1; 
+int model_count = 15;                                                 
+
   
 /* Arrays for holding vertex data of the two models */				
-GLfloat *vertex_buffer_data[13];
+GLfloat *vertex_buffer_data[15];
 
 
 /* Arrays for holding indices of the two models */
-GLushort *index_buffer_data[13];
+GLushort *index_buffer_data[15];
 
 
 /* Structures for loading of OBJ data */
-obj_scene_data data[13];
+obj_scene_data data[15];
 
 /* Reference time for animation */
 int oldTime = 0;
 
 
 /* View values */						// New - reset camera (view) values
-float camera_disp = -12.0;
-float angle=0, xx=0;
+float camera_disp = -10.0;
+float angle=0;
+float angle1=0;
+float angle2=0;
+float angle3=0;
+float xx=0;
+float yy=0;
 
+
+float fovy = 45.0;                                  // fovy == field of view
+float aspect = 1.0;                                 // aspect == ratio of width to height
+float nearPlane = 1.0; 
+float farPlane = 100.0;
+
+float RotationMatrixCam[16];		
+float RotationMatrixCam2[16];	
+float RotationMatrixCam3[16];
+int camMov1 = 0;
+int camMov2 = 0;
+
+
+float TranslationMatrixCam[16];
 /*----------------------------------------------------------------*/
 
 
@@ -132,25 +158,13 @@ float angle=0, xx=0;
 *
 *******************************************************************/
 
-void Display()								// NEW: all models center in point of origin?
+void Display()								// NEW: 2 models center in point of origin
 {
-  // draw fixed background structure: Cube as a room space 		// NEW: here fixed background structure?
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  glDisable(GL_DEPTH_TEST);
-  gluOrtho2D(-1.0, 1.0, -1.0, 1.0);
-  glColor3f(0.5, 0.1, 0.2);
-  glBegin(GL_QUADS);
-  glVertex3f(-100.0f, 0.0f, -100.0f);
-  glVertex3f(-100.0f, 0.0f,  100.0f);
-  glVertex3f( 100.0f, 0.0f,  100.0f);
-  glVertex3f( 100.0f, 0.0f, -100.0f);
-  glEnd();
-
   /* Clear window; color specified in 'Initialize()' */
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
   int i;
-  for(i=0; i<13; ++i){
+  for(i=0; i<model_count; ++i){
     glEnableVertexAttribArray(vPosition);
 
     /* Bind buffer with vertex data of currently active object */
@@ -189,28 +203,16 @@ void Display()								// NEW: all models center in point of origin?
         exit(-1);
     }
     
-    glUniformMatrix4fv(RotationUniform, 1, GL_TRUE, ModelMatrix[i]);  	// Rotation Matrix HERE? - Translation Matrices HERE?
-    
-    // NEW roation of single objects - DOES NOT WORK
-/*    
-    int newTime = glutGet(GLUT_ELAPSED_TIME);
-    int delta = newTime - oldTime;
-    oldTime = newTime;
-    angleY = 0;
-    angleY = fmod(angleY + delta/20.0, 360.0);
-    SetRotationY(angleY, RotationMatrixAnimY);      
-    SetIdentityMatrix(IdentityMatrixAnim);
-    MultiplyMatrix(IdentityMatrixAnim, RotationMatrixAnimY, ModelMatrix[8]);
-    angleY = 0;
-*/
+    glUniformMatrix4fv(RotationUniform, 1, GL_TRUE, ModelMatrix[i]);  	
 
-    
+    // How to make initial transformation of loaded objects?                            ???
     
     /* Set state to only draw wireframe (no lighting used, yet) */
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); 
 
     /* Issue draw command, using indexed triangle list */
     glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
+    
 
     /* Disable attributes */
     glDisableVertexAttribArray(vPosition);
@@ -257,7 +259,7 @@ void Mouse(int button, int state, int x, int y)
 }
 
 
-/******************************************************************		// NEW re-able keyboard for camera modes?
+/******************************************************************		// NEW re-able keyboard for camera modes
 *
 * Keyboard
 * 
@@ -267,31 +269,76 @@ void Mouse(int button, int state, int x, int y)
 *
 *******************************************************************/
 
-
 void Keyboard(unsigned char key, int x, int y){
-  switch( key ) {				// NEW: use AWSD to control camera (VieMatrix: translation on x axis and z axis
-    case 'w' :
-	camera_disp -= 0.05f;
+  switch( key ) {				                      // NEW: Manual camera mode: allways on -> use WASDRC to translate cam position and IJKL for cam rotation
+    case 'w' :      
+	camera_disp += 0.1f;
 	break;
     case 's' :
-	camera_disp += 0.05f;
+	camera_disp -= 0.1f;
 	break;
     case 'd' :
-	xx += 0.025f;
+	xx -= 0.1;
 	break;
     case 'a' :
-	xx -= 0.025f;
+	xx += 0.1;
 	break;
-    case 'm' :	// set automatic camera mode 
+    case 'i' :      
+	angle2 -= 0.3;
+	break;
+    case 'k' :
+        angle2 += 0.3;
+	break;
+    case 'l' :
+	angle3 += 0.3;
+	break;
+    case 'j' :
+        angle3 -= 0.3;
+	break;      
+    case 'r' :      
+	yy -= 0.1f;
+	break;
+    case 'c' :
+	yy += 0.1f;
+        break;
+    case 'm' :	// set automatic camera mode and reset camera position an rotation (angle)
 	anim_cam = GL_TRUE;
+        camera_disp = -10.0;
+        angle=0;
+        angle1=0;
+        angle2=0;
+        angle3=0;
+        xx=0;
+        yy=0;
+        SetTranslation(xx, yy, camera_disp, ViewMatrix);  // camera_disp == z coordinate of camera
 	return;
 	break;
-    case 'n' :	// unset automatic camera mode
+    case 'n' :	// unset automatic camera mode and reset camera position an rotation (angle)
 	anim_cam = GL_FALSE;
+        camera_disp = -10.0;
+        angle=0;
+        angle1=0;
+        angle2=0;
+        angle3=0;
+        xx=0;
+        yy=0;
+        SetTranslation(xx, yy, camera_disp, ViewMatrix);  // camera_disp == z coordinate of camera
 	return;
 	break;
   }
-  SetTranslation(xx, 0, camera_disp, ViewMatrix);
+  SetIdentityMatrix(RotationMatrixCam);
+  SetIdentityMatrix(RotationMatrixCam2);
+  SetIdentityMatrix(RotationMatrixCam3);
+  SetIdentityMatrix(TranslationMatrixCam);
+  
+  // set camera movement
+  SetTranslation(xx, yy, camera_disp, TranslationMatrixCam);
+  SetRotationX(angle2, RotationMatrixCam);                            
+  SetRotationY(angle3, RotationMatrixCam2);                        
+  
+  // apply movement to viewMatrix (camera matrix)
+  MultiplyMatrix(RotationMatrixCam, RotationMatrixCam2, RotationMatrixCam3);
+  MultiplyMatrix(RotationMatrixCam3, TranslationMatrixCam, ViewMatrix);
   glutPostRedisplay();
 }
 
@@ -305,36 +352,76 @@ void Keyboard(unsigned char key, int x, int y){
 *
 *******************************************************************/
 
-void OnIdle()
-{
+void OnIdle(){
     /* Determine delta time between two frames to ensure constant animation */
     int newTime = glutGet(GLUT_ELAPSED_TIME);
     int delta = newTime - oldTime;
     oldTime = newTime;
+    SetIdentityMatrix(IdentityMatrixAnim);
+    SetIdentityMatrix(TranslationMatrixAnim);
 
-    /* if in automatic camera mode do following */				// NEW auto camera mode
+    /* automatic camera mode: press 'm' to start, and 'n' to reset */			
     if(anim_cam){
-	if(camera_disp > -18){
+	if(camera_disp > -50){             // zoom out of world (until camera position on z == -50) and rotate on x axis
 	    camera_disp -= 0.1;
-	    SetTranslation(xx, 0, camera_disp, ViewMatrix);
+        }
         
-	}
-	else if(xx < 3){
-	    xx += 0.1;	      
-	    SetTranslation(xx, 0, camera_disp, ViewMatrix);
-	}
-	else{
-	  anim_cam = GL_FALSE;
-	}
+        if(camMov2 < 500){        
+            angle1 += 0.1;
+        }
+        else if(camMov2 < 800){
+            angle1 -= 0.1;
+        }
+        else{
+            camMov2 = 200;
+        }
+        ++camMov2;
+            
+        
+        if(camMov1 < 10 && camMov1 > -1){               // move camera to left and right with some pause of movement
+          // Pause movement
+        }
+        else if(camMov1 < 80){
+           angle -= 0.1;
+        }
+        else if(camMov1 < 100){
+           // Pause movement
+        }
+        else if(camMov1 < 240){
+           angle += 0.1;
+        }
+        else if(camMov1 < 250){
+           // Pause movement
+        }
+        else if(camMov1 < 320){
+           angle -= 0.1;
+        }
+        else{
+         //  Pause for some time
+            if(camMov1 > 1000){
+                camMov1 = 0;
+            }
+        }
+        ++camMov1;
+            
+        SetIdentityMatrix(RotationMatrixCam);
+        SetIdentityMatrix(RotationMatrixCam2);
+        
+	SetTranslation(0.0, 0.0, camera_disp, TranslationMatrixAnim);      // translate cameras z position
+              
+	SetRotationY(angle, RotationMatrixCam);                            // set rotation of camera
+	SetRotationX(angle1, RotationMatrixCam2);
+        MultiplyMatrix(RotationMatrixCam, TranslationMatrixAnim, RotationMatrixCam3);   
+        MultiplyMatrix(RotationMatrixCam3, RotationMatrixCam2, ViewMatrix);
     }
+
     
-    
-    /* If animation is set to true, rotate */
+    /* If animation is set to true, set new rotation angles */
     if(anim){
         /* Increment rotation angles and update matrix */
         if(axis == YaxisStop){
-	      angleY = 0;
-	      SetRotationY(0, RotationMatrixAnimY);  
+	     // angleY = 0;
+	      SetRotationY(angleY, RotationMatrixAnimY);  
 	      
 	      
 	}
@@ -348,36 +435,66 @@ void OnIdle()
     }
 
     
-    // ROTATE AROUND OBJECTS CENTER?: translate to center, than rotate, and translate back    
-    int k;
-    for(k=1; k<13; ++k){
-            
+    // Set Translation for Center-Imported Objects (ball_01, ball_02 and ring)                  // NEW
+    SetIdentityMatrix(IdentityMatrixAnim);
+    SetIdentityMatrix(TranslationMatrixAnim);
+    SetIdentityMatrix(TranslationMatrixAnim2);
+    SetIdentityMatrix(TranslationMatrixAnim3);
+    SetIdentityMatrix(TranslationMatrixAnim4);
+    SetIdentityMatrix(TranslationMatrixAnim5);
+    
+    SetTranslation(-1.8, 1, -1.8, TranslationMatrixAnim);               // ball_01          -1,8/1,8/1
+    SetTranslation(1.8, 1, 1.8, TranslationMatrixAnim3);                // ball_02           1,8/-1,8/1
+    SetTranslation(-0.96, -1.73403, -0.66, TranslationMatrixAnim5);     // elliptic_ring    -0,96/0,66/-1,73403
+    
+    /* Rotation of models */
+    int k;		
+    for(k=1; k<13; ++k){         // do not rotate top ring (index 0) and fixed background structures (index 13 and 14)
+       
+      // Set main rotaiton
       /* Update of transformation matrices 
        * Note order of transformations and rotation of reference axes */
       SetIdentityMatrix(IdentityMatrixAnim);
       MultiplyMatrix(IdentityMatrixAnim, RotationMatrixAnimY, RotationMatrixAnim);
-      		
       
-      if(k==1 || k == 6 || k == 7){			
-	// do not rotate top bar
-	
+      
+      // rotate top bar in different direction and double the rotation speed
+      if(k==1 || k==6 || k == 7){	
 	angleY2 = -fmod(angleY + delta/20.0, 360.0);	
-	SetRotationY(angleY2, RotationMatrixAnimY2);	
-	MultiplyMatrix(RotationMatrixAnimY2, IdentityMatrixAnim, ModelMatrix[k]);					
-	// winkel einfach umdrehen
-	// fuer die andre richtung
-					
-	// by evgenij zuenko
-	// damit dreht sich der ball  doppelt so schnell
+	SetRotationY(angleY2, RotationMatrixAnimY2);
+        
+        // in daddition: rotate models ball_01 and ball_02 around their own center
+        if(k==6){
+            MultiplyMatrix(RotationMatrixAnimY2, RotationMatrixAnimY2, RotationMatrixAnimY3);
+            MultiplyMatrix(RotationMatrixAnimY3, TranslationMatrixAnim, TranslationMatrixAnim2);
+            MultiplyMatrix(TranslationMatrixAnim2, RotationMatrixAnimY2, ModelMatrix[k]);
+            continue;
+        }
+        else if(k==7){
+            MultiplyMatrix(RotationMatrixAnimY2, RotationMatrixAnimY2, RotationMatrixAnimY3);
+            MultiplyMatrix(RotationMatrixAnimY3, TranslationMatrixAnim3, TranslationMatrixAnim2);
+            MultiplyMatrix(TranslationMatrixAnim2, RotationMatrixAnimY2, ModelMatrix[k]);
+            continue;
+        } 
+
+	MultiplyMatrix(RotationMatrixAnimY2, IdentityMatrixAnim, ModelMatrix[k]);	
 	MultiplyMatrix(RotationMatrixAnimY2,RotationMatrixAnimY2,ModelMatrix[k]);
 	
       }
+     
+      
       else {
+        // additional rotation of ring with double speed oround its center
+        if(k==11){
+            MultiplyMatrix(RotationMatrixAnimY, TranslationMatrixAnim5, RotationMatrixAnimY3);
+            MultiplyMatrix(RotationMatrixAnimY3, RotationMatrixAnimY, TranslationMatrixAnim4);
+            MultiplyMatrix(TranslationMatrixAnim4, RotationMatrixAnimY, ModelMatrix[k]);
+            continue;
+        }
         MultiplyMatrix(RotationMatrixAnim, IdentityMatrixAnim, ModelMatrix[k]);			
       }
+      
     }
-  
- 
     
     /* Issue display refresh */
     glutPostRedisplay();
@@ -396,20 +513,19 @@ void SetupDataBuffers()
 {
   
     int i;
-    for(i=0; i<14; ++i){
+    for(i=0; i<model_count; ++i){
       glGenBuffers(1, &VBO[i]);
       glBindBuffer(GL_ARRAY_BUFFER, VBO[i]);
       glBufferData(GL_ARRAY_BUFFER, data[i].vertex_count*3*sizeof(GLfloat), vertex_buffer_data[i], GL_STATIC_DRAW);   
     }
     
   
-    for(i=0; i<13; ++i){
+    for(i=0; i<model_count; ++i){
       glGenBuffers(1, &IBO[i]);
       glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO[i]);
       glBufferData(GL_ELEMENT_ARRAY_BUFFER, data[i].face_count*3*sizeof(GLushort), index_buffer_data[i], GL_STATIC_DRAW);
     }
     
- 
 }
 
 
@@ -533,34 +649,35 @@ void Initialize()
     int vert, indx;
 
     /* Load OBJ models */
-    char* filename[13];
+    char* filename[15];
     filename[0] = "models/ring.obj";
     filename[1] = "models/bar_01.obj"; 
     filename[2] = "models/bar_02.obj";
     filename[3] = "models/bar_03.obj";
     filename[4] = "models/bar_04.obj";
     filename[5] = "models/cone.obj";
-    filename[6] = "models/ball_01.obj";
-    filename[7] = "models/ball_02.obj";
+    filename[6] = "models_n/ball_01.obj";           
+    filename[7] = "models_n/ball_02.obj";
     filename[8] = "models/cone_small.obj";
     filename[9] = "models/rectangle_small.obj";
     filename[10] = "models/rectangle_big.obj";
-    filename[11] = "models/elliptic_ring.obj";
+    filename[11] = "models_n/elliptic_ring.obj";
     filename[12] = "models/ellipse.obj";
     
-    for(k=0; k<13; ++k){
+    filename[13] = "models_n/stand.obj";
+    filename[14] = "models_n/surrounding.obj";
+    
+    for(k=0; k<model_count; ++k){
       
       success = parse_obj_scene(&data[k], filename[k]);
 
       if(!success)
 	  printf("Could not load file. Exiting.\n");
     }
-    
-
   
     /*  Copy mesh data from structs into appropriate arrays */ 
     
-    for(k=0; k<13; ++k){
+    for(k=0; k<model_count; ++k){
       vert = data[k].vertex_count;
       indx = data[k].face_count;
 
@@ -582,7 +699,6 @@ void Initialize()
 	index_buffer_data[k][i*3+2] = (GLushort)(*data[k].face_list[i]).vertex_index[2];
       }
     }
-    
  
     /* Set background (clear) color to blue */ 
     glClearColor(0.1, 0.2, 0.5, 0.0);
@@ -590,10 +706,7 @@ void Initialize()
     /* Setup Vertex array object - INTEL FIX*/ 
     GLuint VAO;
     glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);	 
-    
-									      // NEW: code here for fixed background object?
-    
+    glBindVertexArray(VAO);    
     
     /* Enable depth testing */
     glEnable(GL_DEPTH_TEST);
@@ -609,11 +722,10 @@ void Initialize()
     SetIdentityMatrix(ProjectionMatrix);
     SetIdentityMatrix(ViewMatrix);	
   
-    // NEW set all Model matrices
-    for(k=0; k<13; ++k){
+    // set all Model matrices       
+    for(k=0; k<model_count; ++k){
        SetIdentityMatrix(ModelMatrix[k]);
     }
-    
     
     /* Initialize animation matrices */
     SetIdentityMatrix(RotationMatrixAnimX);
@@ -622,14 +734,10 @@ void Initialize()
     SetIdentityMatrix(RotationMatrixAnim);
     
     /* Set projection transform */
-    float fovy = 45.0;
-    float aspect = 1.0; 
-    float nearPlane = 1.0; 
-    float farPlane = 50.0;
     SetPerspectiveMatrix(fovy, aspect, nearPlane, farPlane, ProjectionMatrix);
 
     /* Set initial viewing transform */
-    SetTranslation(0, 0.0, camera_disp, ViewMatrix);
+    SetTranslation(0.0, 0.0, camera_disp, ViewMatrix);  // camera_disp == z coordinate of camera
     	
 }
 
